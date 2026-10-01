@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>East Zone Site Safety</title>
+
+<!-- Export libraries: Excel (SheetJS), PDF (jsPDF + AutoTable), ZIP of photos (JSZip) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+  :root{--blue:#1f4e78;--green:#1e8e3e;--red:#c5221f;--amber:#f9ab00;--bg:#f2f5f9;--card:#fff;--txt:#1b1f24;--mut:#5f6b7a;--bd:#d6dde6}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:16px}
+  header{background:var(--blue);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  header small{display:block;font-size:12px;opacity:.85;font-weight:400}
+  header button{background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:6px;padding:6px 10px;font-size:13px}
+  main{max-width:560px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:14px}
+  .card h2{font-size:15px;margin:0 0 12px;color:var(--blue);display:flex;align-items:center;gap:8px}
+  .step{background:var(--blue);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+  .step.done{background:var(--green)}
+  label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+  .req{color:var(--red)}
+  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:8px;font-size:16px;background:#fff;color:var(--txt)}
+  textarea{resize:vertical;min-height:60px}
+  .btn{display:block;width:100%;padding:13px;border:0;border-radius:8px;font-size:16px;font-weight:600;background:var(--blue);color:#fff;margin-top:14px;cursor:pointer}
+  .btn.green{background:var(--green)} .btn.ghost{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+  .btn:disabled{background:#b8c2cc;color:#fff;border:0;cursor:not-allowed}
+  .ppe{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;font-size:15px}
+  .ppe input{width:22px;height:22px;flex:none}
+  .ppe.on{border-color:var(--green);background:#e6f4ea}
+  .ppe .opt{margin-left:auto;font-size:11px;color:var(--mut);border:1px solid var(--bd);border-radius:10px;padding:2px 8px}
+  .note{font-size:13px;padding:10px 12px;border-radius:8px;margin-top:10px}
+  .note.red{background:#fce8e6;color:var(--red)} .note.green{background:#e6f4ea;color:var(--green)} .note.info{background:#e8f0fe;color:var(--blue)}
+  .hidden{display:none!important}
+  #preview{width:100%;border-radius:8px;margin-top:10px;border:1px solid var(--bd)}
+  .tabs{display:flex;gap:6px;margin-bottom:14px}
+  .tabs button{flex:1;padding:10px 4px;border:1px solid var(--blue);background:#fff;color:var(--blue);border-radius:8px;font-weight:600;font-size:13px}
+  .tabs button.act{background:var(--blue);color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}
+  th{color:var(--mut);font-weight:600;white-space:nowrap}
+  .pill{font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600}
+  .pill.a{background:#fff4d6;color:#8a5a00} .pill.y{background:#e6f4ea;color:var(--green)} .pill.n{background:#fce8e6;color:var(--red)}
+  .tog{font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--bd);background:#fff}
+  #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1b1f24;color:#fff;padding:12px 18px;border-radius:8px;font-size:14px;max-width:90%;z-index:9;display:none}
+  #busy{position:fixed;inset:0;background:rgba(255,255,255,.75);display:none;align-items:center;justify-content:center;z-index:8;font-weight:600;color:var(--blue);text-align:center;padding:20px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .row3 .btn{margin-top:0;font-size:14px;padding:12px 6px}
+  .small{font-size:12px;color:var(--mut)}
+  .seg{display:flex;border:1px solid var(--blue);border-radius:8px;overflow:hidden}
+  .seg button{flex:1;padding:9px 4px;border:0;background:#fff;color:var(--blue);font-weight:600;font-size:13px}
+  .seg button+button{border-left:1px solid var(--blue)}
+  .seg button.act{background:var(--blue);color:#fff}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt);margin:12px 0 0}
+  .chk input{width:18px;height:18px}
+  .scroll{overflow-x:auto;max-height:420px;overflow-y:auto}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .stat{background:var(--bg);border-radius:8px;padding:8px;text-align:center}
+  .stat b{display:block;font-size:20px;color:var(--blue)}
+  .stat span{font-size:11px;color:var(--mut)}
+</style>
+</head>
+<body>
+
+<header>
+  <div><h1>East Zone Site Safety</h1><small id="hdrUser">Jio-bp RO Sites</small></div>
+  <button id="btnLogout" class="hidden" onclick="doLogout()">Logout</button>
+</header>
+
+<main>
+  <!-- ============ LOGIN ============ -->
+  <section id="scrLogin">
+    <div class="card">
+      <h2>Login</h2>
+      <label for="empId">Employee ID</label>
+      <input id="empId" inputmode="numeric" placeholder="e.g. 005" maxlength="4">
+      <label for="pin">PIN (registered mobile number)</label>
+      <input id="pin" type="password" inputmode="numeric" placeholder="10-digit mobile no." maxlength="10">
+      <button class="btn" onclick="doLogin()">Login</button>
+      <div id="loginMsg" class="note red hidden"></div>
+      <div id="srvMsg" class="note info">Checking server…</div>
+    </div>
+    <p class="small" style="text-align:center">Admins (Raju Bose, Yugandhar Kanekar, Gaurav Srivastav, Avinash Sakpal, Nayan Nimkar): after login, use the <b>Employees</b> tab to add new employees.</p>
+    <p class="small" style="text-align:center">Access restricted to East zone (WB, BH, JH, OR, NE) staff only.</p>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <section id="scrApp" class="hidden">
+    <div class="tabs">
+      <button id="tabCheck" class="act" onclick="showTab('check')">Check-in</button>
+      <button id="tabMine" onclick="showTab('mine')">My Check-ins</button>
+      <button id="tabReport" onclick="showTab('report')">Reports</button>
+      <button id="tabAdmin" class="hidden" onclick="showTab('admin')">Employees</button>
+    </div>
+
+    <!-- ---- CHECK-IN ---- -->
+    <div id="pgCheck">
+      <div class="card">
+        <h2><span class="step" id="s1">1</span>Site details</h2>
+        <label for="state">State <span class="req">*</span></label>
+        <select id="state"></select>
+        <div class="row2">
+          <div><label for="roCode">RO Code <span class="req">*</span></label><input id="roCode" placeholder="ORF188" style="text-transform:uppercase"></div>
+          <div><label for="roName">RO Name <span class="req">*</span></label><input id="roName" placeholder="RO name" style="text-transform:uppercase"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="step" id="s2">2</span>Safety kit (PPE)</h2>
+        <label class="ppe"><input type="checkbox" class="ppeChk" data-k="helmet" data-req="1"> Safety Helmet <span class="req">*</span></label>
+        <label class="ppe"><input type="checkbox" class="ppeChk" data-k="shoes" data-req="1"> Safety Shoes <span class="req">*</span></label>
+        <label class="ppe"><input type="checkbox" class="ppeChk" data-k="jacket" data-req="1"> Reflective Jacket <span class="req">*</span></label>
+        <label class="ppe"><input type="checkbox" class="ppeChk" data-k="gloves"> Hand Gloves <span class="opt">Optional</span></label>
+        <div id="ppeMsg" class="note red">Wear Helmet, Shoes and Reflective Jacket. The camera stays locked until these are ticked.</div>
+      </div>
+
+      <div class="card">
+        <h2><span class="step" id="s3">3</span>GPS location</h2>
+        <button class="btn ghost" id="btnGps" onclick="getGps()">Capture my location</button>
+        <div id="gpsMsg" class="note info hidden"></div>
+      </div>
+
+      <div class="card">
+        <h2><span class="step" id="s4">4</span>Photo with safety kit</h2>
+        <input type="file" id="camera" accept="image/*" capture="environment" class="hidden" onchange="onPhoto(this)">
+        <button class="btn" id="btnCam" disabled onclick="document.getElementById('camera').click()">🔒 Camera locked</button>
+        <img id="preview" class="hidden" alt="Captured photo">
+        <label for="remarks">Remarks <span class="req">*</span></label>
+        <textarea id="remarks" maxlength="300" placeholder="Work done / site observation (min. 3 characters)"></textarea>
+      </div>
+
+      <button class="btn green" id="btnSubmit" disabled onclick="submitCheckin()">Submit check-in</button>
+      <div id="submitMsg" class="note hidden"></div>
+      <div style="height:20px"></div>
+    </div>
+
+    <!-- ---- MY CHECK-INS ---- -->
+    <div id="pgMine" class="hidden">
+      <div class="card"><h2>My last 10 check-ins</h2><div id="mineList" class="small">Loading…</div></div>
+    </div>
+
+    <!-- ---- REPORTS ---- -->
+    <div id="pgReport" class="hidden">
+      <div class="card">
+        <h2>Check-in report</h2>
+        <div class="seg" id="rSeg">
+          <button data-t="day" class="act" onclick="setPeriod('day')">Day</button>
+          <button data-t="month" onclick="setPeriod('month')">Month</button>
+          <button data-t="year" onclick="setPeriod('year')">Year</button>
+          <button data-t="range" onclick="setPeriod('range')">Range</button>
+        </div>
+
+        <div id="pDay"><label for="rDay">Date</label><input type="date" id="rDay"></div>
+        <div id="pMonth" class="hidden"><label for="rMonth">Month</label><input type="month" id="rMonth"></div>
+        <div id="pYear" class="hidden"><label for="rYear">Year</label><select id="rYear"></select></div>
+        <div id="pRange" class="hidden row2">
+          <div><label for="rFrom">From</label><input type="date" id="rFrom"></div>
+          <div><label for="rTo">To</label><input type="date" id="rTo"></div>
+        </div>
+
+        <div class="row2">
+          <div><label for="rState">State</label><select id="rState"><option value="">All states</option></select></div>
+          <div id="rEmpWrap" class="hidden"><label for="rEmp">Employee ID</label><input id="rEmp" placeholder="All" maxlength="6"></div>
+        </div>
+        <p id="rScope" class="small" style="margin:8px 0 0"></p>
+
+        <button class="btn" onclick="loadReport()">Show report</button>
+        <div id="rMsg" class="note hidden"></div>
+      </div>
+
+      <div class="card hidden" id="rResult">
+        <h2 id="rTitle">Report</h2>
+        <div class="stats">
+          <div class="stat"><b id="stTotal">0</b><span>Check-ins</span></div>
+          <div class="stat"><b id="stDays">0</b><span>Days</span></div>
+          <div class="stat"><b id="stEmp">0</b><span>Employees</span></div>
+        </div>
+
+        <label style="margin-top:14px">Download</label>
+        <div class="row3">
+          <button class="btn" onclick="dlPdf()">📄 PDF</button>
+          <button class="btn green" onclick="dlExcel()">📊 Excel</button>
+          <button class="btn ghost" onclick="dlImages()">🖼️ Images</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="pdfPhotos" checked> Include site photos in PDF</label>
+        <p class="small" style="margin:8px 0 0">Images download as a ZIP file with one folder per day (YYYY-MM-DD), each photo named by RO code and employee.</p>
+
+        <div class="scroll" style="margin-top:12px"><table id="rTable"></table></div>
+        <p id="rMore" class="small"></p>
+      </div>
+    </div>
+
+    <!-- ---- ADMIN ---- -->
+    <div id="pgAdmin" class="hidden">
+      <div class="card">
+        <h2>Add new employee</h2>
+        <label for="nName">Employee name</label>
+        <input id="nName" placeholder="Full name" style="text-transform:uppercase">
+        <label for="nMobile">Mobile number (becomes login PIN)</label>
+        <input id="nMobile" inputmode="numeric" maxlength="10" placeholder="10-digit mobile no.">
+        <label for="nRole">Role</label>
+        <select id="nRole"><option value="ENGINEER">Engineer</option><option value="ADMIN">Admin</option></select>
+        <button class="btn" onclick="addEmp()">Add employee</button>
+        <div id="addMsg" class="note hidden"></div>
+      </div>
+      <div class="card">
+        <h2>Employee list</h2>
+        <div style="overflow-x:auto"><table><thead><tr><th>ID</th><th>Name</th><th>Role</th><th>Status</th></tr></thead>
+        <tbody id="empBody"><tr><td colspan="4">Loading…</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="busy">Please wait…</div>
+<div id="toast"></div>
+
+<script>
+let TOKEN = null, USER = null, GPS = null, PHOTO = null;
+let REPORT = null, PERIOD = 'day';
+const PHOTO_CACHE = {};
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayIST = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });   // YYYY-MM-DD
+const safeName = s => String(s || '').trim().replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '') || 'NA';
+
+/* Your deployed Apps Script web-app link (used when this file is opened on its own, e.g. GitHub Pages) */
+const API_URL = 'https://script.google.com/macros/s/AKfycbxwkCAAG8XNXVAcV7XBqmPRTNguhjHXplqdXipVGknL0mE04b3Uc-YGtSR3Y2eYJst8mg/exec';
+const IN_GAS = !!(window.google && google.script && google.script.run);
+
+function call(fn, ...args) {
+  busy(true);
+  const done = r => {
+    busy(false);
+    if (r && r.error && /Session expired/.test(r.error)) { toast(r.error); resetToLogin(); }
+    return r || { ok: false, error: 'No response from server.' };
+  };
+  const fail = e => {
+    busy(false);
+    const msg = 'Cannot reach server: ' + (e && e.message ? e.message : e);
+    toast(msg);
+    return { ok: false, error: msg };
+  };
+  if (IN_GAS) {
+    return new Promise(res => google.script.run
+      .withSuccessHandler(r => res(done(r)))
+      .withFailureHandler(e => res(fail(e)))[fn](...args));
+  }
+  return fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // avoids CORS pre-flight
+    body: JSON.stringify({ fn: fn, args: args })
+  }).then(r => r.json()).then(done).catch(fail);
+}
+
+async function checkServer() {
+  const s = $('srvMsg');
+  const r = await call('ping');
+  if (r.ok) note(s, 'green', `Server connected • ${r.users} employees registered`);
+  else note(s, 'red', r.error || 'Server not reachable');
+}
+function busy(on, msg) {
+  const b = $('busy');
+  if (msg) b.textContent = msg;
+  else if (!on) b.textContent = 'Please wait…';
+  b.style.display = on ? 'flex' : 'none';
+}
+function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 3500); }
+function note(el, cls, msg) { el.className = 'note ' + cls; el.textContent = msg; }
+
+/* ---------------- LOGIN ---------------- */
+async function doLogin() {
+  const id = $('empId').value.trim(), pin = $('pin').value.trim();
+  if (!id || !pin) return note($('loginMsg'), 'red', 'Enter Employee ID and PIN.');
+  const r = await call('login', id, pin);
+  if (!r.ok) return note($('loginMsg'), 'red', r.error);
+  TOKEN = r.token; USER = r.user;
+  $('loginMsg').className = 'note hidden';
+  $('pin').value = '';
+  $('hdrUser').textContent = `${USER.name} (${USER.id})${USER.role === 'ADMIN' ? ' • Admin' : ''}`;
+  const opts = r.states.map(s => `<option>${esc(s)}</option>`).join('');
+  $('state').innerHTML = '<option value="">Select state</option>' + opts;
+  $('rState').innerHTML = '<option value="">All states</option>' + opts;
+  const isAdmin = USER.role === 'ADMIN';
+  $('tabAdmin').classList.toggle('hidden', !isAdmin);
+  $('rEmpWrap').classList.toggle('hidden', !isAdmin);
+  $('rScope').textContent = isAdmin ? 'Admin: report covers all employees (or enter one Employee ID).' : 'Report covers your own check-ins only.';
+  $('scrLogin').classList.add('hidden'); $('scrApp').classList.remove('hidden'); $('btnLogout').classList.remove('hidden');
+  showTab('check');
+}
+async function doLogout() { if (TOKEN) await call('logout', TOKEN); resetToLogin(); }
+function resetToLogin() {
+  TOKEN = USER = REPORT = null; resetForm();
+  Object.keys(PHOTO_CACHE).forEach(k => delete PHOTO_CACHE[k]);
+  $('rResult').classList.add('hidden'); $('rMsg').className = 'note hidden';
+  $('scrApp').classList.add('hidden'); $('btnLogout').classList.add('hidden'); $('scrLogin').classList.remove('hidden');
+  $('hdrUser').textContent = 'Jio-bp RO Sites';
+}
+
+function showTab(t) {
+  ['check', 'mine', 'report', 'admin'].forEach(x => {
+    const cap = x[0].toUpperCase() + x.slice(1);
+    $('pg' + cap).classList.toggle('hidden', x !== t);
+    $('tab' + cap).classList.toggle('act', x === t);
+  });
+  if (t === 'mine') loadMine();
+  if (t === 'admin') loadEmps();
+}
+
+/* ---------------- PPE GATE (gloves optional) ---------------- */
+document.querySelectorAll('.ppeChk').forEach(c => c.addEventListener('change', e => {
+  e.target.closest('.ppe').classList.toggle('on', e.target.checked);
+  if (!e.target.checked && e.target.dataset.req) { PHOTO = null; $('preview').classList.add('hidden'); }   // mandatory kit removed → discard photo
+  refresh();
+}));
+function ppeAll() { return [...document.querySelectorAll('.ppeChk[data-req]')].every(c => c.checked); }
+function ppeObj() { const o = {}; document.querySelectorAll('.ppeChk').forEach(c => o[c.dataset.k] = c.checked); return o; }
+
+function siteOk() { return $('state').value && $('roCode').value.trim().length >= 3 && $('roName').value.trim(); }
+function remarksOk() { return $('remarks').value.trim().length >= 3; }
+['state', 'roCode', 'roName', 'remarks'].forEach(id => $(id).addEventListener('input', refresh));
+$('state').addEventListener('change', refresh);
+
+function refresh() {
+  const p = ppeAll(), s = siteOk(), g = !!GPS;
+  $('s1').classList.toggle('done', !!s); $('s2').classList.toggle('done', p);
+  $('s3').classList.toggle('done', g);   $('s4').classList.toggle('done', !!PHOTO && remarksOk());
+  note($('ppeMsg'), p ? 'green' : 'red', p
+    ? 'Safety kit confirmed.' + (_gl().checked ? '' : ' (Gloves not worn – optional)')
+    : 'Wear Helmet, Shoes and Reflective Jacket. The camera stays locked until these are ticked.');
+  const camOk = p && g && s;
+  $('btnCam').disabled = !camOk;
+  $('btnCam').textContent = camOk ? (PHOTO ? '📷 Retake photo' : '📷 Open camera') :
+    !s ? '🔒 Fill site details first' : !p ? '🔒 Camera locked – wear safety kit' : '🔒 Capture GPS first';
+  $('btnSubmit').disabled = !(camOk && PHOTO && remarksOk());
+  $('btnSubmit').textContent = camOk && PHOTO && !remarksOk() ? 'Enter remarks to submit' : 'Submit check-in';
+}
+function _gl() { return document.querySelector('.ppeChk[data-k=gloves]'); }
+
+/* ---------------- GPS ---------------- */
+function getGps() {
+  const m = $('gpsMsg');
+  if (!navigator.geolocation) return note(m, 'red', 'GPS not supported on this phone/browser.');
+  note(m, 'info', 'Getting location… keep GPS ON and stay in open sky.');
+  navigator.geolocation.getCurrentPosition(p => {
+    GPS = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy) };
+    note(m, GPS.acc <= 100 ? 'green' : 'info', `Location: ${GPS.lat}, ${GPS.lng} (±${GPS.acc} m)` + (GPS.acc > 100 ? ' – low accuracy, you may retry.' : ''));
+    $('btnGps').textContent = 'Re-capture location';
+    refresh();
+  }, e => {
+    GPS = null; refresh();
+    note(m, 'red', e.code === 1 ? 'Location permission denied. Allow location for this site in browser settings and retry.' : 'Could not get location. Turn ON GPS and retry.');
+  }, { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
+}
+
+/* ---------------- PHOTO (resize + watermark) ---------------- */
+function onPhoto(inp) {
+  const f = inp.files && inp.files[0]; inp.value = '';
+  if (!f) return;
+  if (!ppeAll()) { toast('Wear Helmet, Shoes and Jacket first.'); return; }
+  const img = new Image();
+  img.onload = () => {
+    const max = 1280, sc = Math.min(1, max / Math.max(img.width, img.height));
+    const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const x = cv.getContext('2d'); x.drawImage(img, 0, 0, w, h);
+    const now = new Date(), ts = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    const lines = [
+      `${$('roCode').value.trim().toUpperCase()} - ${$('roName').value.trim().toUpperCase()} (${$('state').value})`,
+      `${USER.name} (${USER.id})`,
+      `${ts} | ${GPS.lat}, ${GPS.lng} ±${GPS.acc}m`,
+      `PPE: Helmet, Shoes, Jacket${_gl().checked ? ', Gloves' : ' (no gloves)'}`
+    ];
+    const fs = Math.max(14, Math.round(w / 40)), bh = fs * 1.35 * lines.length + fs;
+    x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(0, h - bh, w, bh);
+    x.fillStyle = '#fff'; x.font = `600 ${fs}px Arial`;
+    lines.forEach((l, i) => x.fillText(l, fs * .6, h - bh + fs * 1.3 * (i + 1)));
+    PHOTO = cv.toDataURL('image/jpeg', 0.72);
+    $('preview').src = PHOTO; $('preview').classList.remove('hidden');
+    URL.revokeObjectURL(img.src); refresh();
+  };
+  img.onerror = () => toast('Could not read photo, please retake.');
+  img.src = URL.createObjectURL(f);
+}
+
+/* ---------------- SUBMIT ---------------- */
+async function submitCheckin() {
+  if (!(ppeAll() && GPS && PHOTO && siteOk() && remarksOk())) return toast('Complete all mandatory fields.');
+  const r = await call('submitCheckin', TOKEN, {
+    state: $('state').value, roCode: $('roCode').value.trim().toUpperCase(), roName: $('roName').value.trim().toUpperCase(),
+    lat: GPS.lat, lng: GPS.lng, acc: GPS.acc, ppe: ppeObj(), photo: PHOTO, remarks: $('remarks').value.trim()
+  });
+  const m = $('submitMsg');
+  if (!r.ok) return note(m, 'red', r.error);
+  note(m, 'green', `✅ Check-in saved. ID: ${r.checkinId}`);
+  toast('Check-in saved'); resetForm(true);
+}
+function resetForm(keepMsg) {
+  GPS = PHOTO = null;
+  ['roCode', 'roName', 'remarks'].forEach(id => $(id).value = '');
+  $('state').value = '';
+  document.querySelectorAll('.ppeChk').forEach(c => { c.checked = false; c.closest('.ppe').classList.remove('on'); });
+  $('preview').classList.add('hidden'); $('gpsMsg').className = 'note hidden'; $('btnGps').textContent = 'Capture my location';
+  if (!keepMsg) $('submitMsg').className = 'note hidden';
+  refresh();
+}
+
+/* ---------------- MY CHECK-INS ---------------- */
+async function loadMine() {
+  const r = await call('myCheckins', TOKEN);
+  if (!r.ok) return $('mineList').textContent = r.error;
+  $('mineList').innerHTML = r.rows.length ? '<table><tr><th>Date</th><th>RO</th><th>Photo</th></tr>' +
+    r.rows.map(x => `<tr><td>${esc(x.date)}<br>${esc(x.time)}</td><td>${esc(x.roCode)}<br><span class="small">${esc(x.roName)}</span></td>
+      <td><a href="${esc(x.photo)}" target="_blank" rel="noopener">View</a></td></tr>`).join('') + '</table>'
+    : 'No check-ins yet.';
+}
+
+/* =====================================================================
+   REPORTS  – day / month / year / range  →  PDF, Excel, Images (ZIP)
+   ===================================================================== */
+function initReportInputs() {
+  const t = todayIST();
+  $('rDay').value = t; $('rMonth').value = t.slice(0, 7);
+  $('rFrom').value = t.slice(0, 8) + '01'; $('rTo').value = t;
+  const y = +t.slice(0, 4); let o = '';
+  for (let i = y; i >= 2024; i--) o += `<option>${i}</option>`;
+  $('rYear').innerHTML = o;
+}
+function setPeriod(t) {
+  PERIOD = t;
+  document.querySelectorAll('#rSeg button').forEach(b => b.classList.toggle('act', b.dataset.t === t));
+  ['Day', 'Month', 'Year', 'Range'].forEach(p => $('p' + p).classList.toggle('hidden', p.toLowerCase() !== t));
+}
+function periodRange() {
+  const pad = n => String(n).padStart(2, '0');
+  if (PERIOD === 'day') {
+    const d = $('rDay').value; if (!d) return null;
+    return { from: d, to: d, label: d.split('-').reverse().join('-'), file: d };
+  }
+  if (PERIOD === 'month') {
+    const m = $('rMonth').value; if (!m) return null;
+    const [y, mo] = m.split('-').map(Number), last = new Date(y, mo, 0).getDate();
+    const name = new Date(y, mo - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    return { from: `${m}-01`, to: `${m}-${pad(last)}`, label: name, file: m };
+  }
+  if (PERIOD === 'year') {
+    const y = $('rYear').value; if (!/^\d{4}$/.test(y)) return null;
+    return { from: `${y}-01-01`, to: `${y}-12-31`, label: 'Year ' + y, file: y };
+  }
+  const f = $('rFrom').value, t = $('rTo').value;
+  if (!f || !t || f > t) return null;
+  const fmt = s => s.split('-').reverse().join('-');
+  return { from: f, to: t, label: `${fmt(f)} to ${fmt(t)}`, file: `${f}_to_${t}` };
+}
+
+async function loadReport() {
+  const m = $('rMsg'), p = periodRange();
+  if (!p) return note(m, 'red', 'Select a valid date / month / year (From must be before To).');
+  const emp = USER.role === 'ADMIN' ? $('rEmp').value.trim() : '';
+  const r = await call('reportCheckins', TOKEN, p.from, p.to, $('rState').value, emp);
+  if (!r.ok) { $('rResult').classList.add('hidden'); return note(m, 'red', r.error); }
+  if (!r.rows.length) { $('rResult').classList.add('hidden'); return note(m, 'info', `No check-ins found for ${p.label}.`); }
+  m.className = 'note hidden';
+  REPORT = { headers: r.headers, rows: r.rows, keys: r.keys, period: p, state: $('rState').value, emp: emp };
+  renderReport();
+}
+
+/* Find a column by header name (works with whatever headers your Check-ins sheet uses) */
+function col(re) { return REPORT.headers.findIndex(h => re.test(h)); }
+function cols() {
+  return {
+    photo: col(/photo|image|pic/i),
+    ro: col(/ro\s*code/i),
+    roName: col(/ro\s*name/i),
+    empId: col(/emp(loyee)?\s*\.?\s*id|emp\s*no/i),
+    empName: col(/emp(loyee)?\s*name|^name$/i),
+    state: col(/^state$/i)
+  };
+}
+
+function renderReport() {
+  const { headers, rows, keys, period } = REPORT, c = cols();
+  const filt = [REPORT.state || 'All states', REPORT.emp ? 'Emp ' + REPORT.emp : (USER.role === 'ADMIN' ? 'All employees' : USER.name)].join(' • ');
+  $('rTitle').textContent = `${period.label} — ${filt}`;
+  $('stTotal').textContent = rows.length;
+  $('stDays').textContent = new Set(keys).size;
+  const ek = c.empId >= 0 ? c.empId : c.empName;
+  $('stEmp').textContent = ek >= 0 ? new Set(rows.map(r => r[ek])).size : '–';
+
+  const show = headers.map((h, i) => i);
+  const lim = 100;
+  $('rTable').innerHTML = '<thead><tr>' + show.map(i => `<th>${esc(headers[i])}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.slice(0, lim).map(r => '<tr>' + show.map(i => i === c.photo && r[i]
+      ? `<td><a href="${esc(r[i])}" target="_blank" rel="noopener">View</a></td>`
+      : `<td>${esc(r[i])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  $('rMore').textContent = rows.length > lim ? `Showing first ${lim} of ${rows.length} rows. Downloads include all rows.` : '';
+  $('rResult').classList.remove('hidden');
+}
+
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function libOk(name, obj) { if (!obj) { toast(name + ' library not loaded – check internet and reload.'); return false; } return true; }
+
+/* ---------- EXCEL ---------- */
+function dlExcel() {
+  if (!REPORT || !libOk('Excel', window.XLSX)) return;
+  const { headers, rows, keys, period } = REPORT, c = cols();
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: all check-ins (photo column becomes a clickable link)
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  if (c.photo >= 0) rows.forEach((r, i) => {
+    const ref = XLSX.utils.encode_cell({ r: i + 1, c: c.photo });
+    if (r[c.photo]) ws[ref] = { t: 's', v: 'View photo', l: { Target: r[c.photo] } };
+  });
+  ws['!cols'] = headers.map((h, i) => ({ wch: Math.min(40, Math.max(h.length, ...rows.slice(0, 200).map(r => String(r[i] || '').length)) + 2) }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: headers.length - 1 } }) };
+  XLSX.utils.book_append_sheet(wb, ws, 'Check-ins');
+
+  // Sheet 2: day-wise summary
+  const byDay = {};
+  keys.forEach(k => byDay[k] = (byDay[k] || 0) + 1);
+  const daySheet = [['Date', 'Check-ins'], ...Object.keys(byDay).sort().map(k => [k.split('-').reverse().join('-'), byDay[k]]), ['TOTAL', rows.length]];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(daySheet), 'Day-wise');
+
+  // Sheet 3: employee-wise summary
+  const ek = c.empName >= 0 ? c.empName : c.empId;
+  if (ek >= 0) {
+    const byEmp = {};
+    rows.forEach((r, i) => {
+      const key = (c.empId >= 0 ? r[c.empId] + ' | ' : '') + (c.empName >= 0 ? r[c.empName] : '');
+      byEmp[key] = byEmp[key] || { n: 0, days: new Set(), ros: new Set() };
+      byEmp[key].n++; byEmp[key].days.add(keys[i]); if (c.ro >= 0) byEmp[key].ros.add(r[c.ro]);
+    });
+    const es = [['Employee', 'Check-ins', 'Days active', 'RO sites visited'],
+      ...Object.keys(byEmp).sort().map(k => [k, byEmp[k].n, byEmp[k].days.size, byEmp[k].ros.size])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(es), 'Employee-wise');
+  }
+
+  XLSX.writeFile(wb, `Safety_Checkins_${safeName(period.file)}.xlsx`);
+  toast('Excel downloaded');
+}
+
+/* ---------- PHOTO FETCH (from Drive via server, in batches) ---------- */
+async function fetchPhotos(urls) {
+  const need = [...new Set(urls.filter(u => u && !(u in PHOTO_CACHE)))];
+  const B = 8;
+  for (let i = 0; i < need.length; i += B) {
+    const r = await call('reportPhotos', TOKEN, need.slice(i, i + B));
+    busy(true, `Downloading photos… ${Math.min(i + B, need.length)} / ${need.length}`);
+    if (!r.ok) { busy(false); toast(r.error || 'Photo download failed'); return false; }
+    r.photos.forEach(p => PHOTO_CACHE[p.url] = p.data);
+  }
+  busy(false);
+  return true;
+}
+function confirmMany(n) { return n <= 150 || confirm(`${n} photos will be downloaded. This may take a few minutes on mobile data. Continue?`); }
+
+/* ---------- IMAGES (ZIP, one folder per day) ---------- */
+async function dlImages() {
+  if (!REPORT || !libOk('ZIP', window.JSZip)) return;
+  const { rows, keys, period } = REPORT, c = cols();
+  if (c.photo < 0) return toast('No photo column found in the sheet.');
+  const urls = rows.map(r => r[c.photo]).filter(Boolean);
+  if (!urls.length) return toast('No photos in this report.');
+  if (!confirmMany(urls.length)) return;
+  if (!(await fetchPhotos(urls))) return;
+
+  busy(true, 'Building ZIP file…');
+  const zip = new JSZip(), used = {};
+  let added = 0;
+  rows.forEach((r, i) => {
+    const d = PHOTO_CACHE[r[c.photo]]; if (!d) return;
+    const folder = keys[i];
+    let base = [c.ro >= 0 ? r[c.ro] : 'RO', c.empName >= 0 ? r[c.empName] : (c.empId >= 0 ? r[c.empId] : 'EMP')].map(safeName).join('_');
+    const k = folder + '/' + base; used[k] = (used[k] || 0) + 1;
+    if (used[k] > 1) base += '_' + used[k];
+    const ext = /image\/png/.test(d) ? 'png' : 'jpg';
+    zip.folder(folder).file(`${base}.${ext}`, d.split(',')[1], { base64: true });
+    added++;
+  });
+  if (!added) { busy(false); return toast('Photos could not be read from Drive.'); }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  busy(false);
+  saveBlob(blob, `Safety_Photos_${safeName(period.file)}.zip`);
+  toast(`${added} photos downloaded`);
+}
+
+/* ---------- PDF ---------- */
+function imgSize(src) {
+  return new Promise(res => { const i = new Image(); i.onload = () => res({ w: i.width, h: i.height }); i.onerror = () => res(null); i.src = src; });
+}
+async function dlPdf() {
+  if (!REPORT || !libOk('PDF', window.jspdf)) return;
+  const { headers, rows, keys, period } = REPORT, c = cols();
+  const withPhotos = $('pdfPhotos').checked && c.photo >= 0;
+  if (withPhotos) {
+    const urls = rows.map(r => r[c.photo]).filter(Boolean);
+    if (urls.length && !confirmMany(urls.length)) return;
+    if (urls.length && !(await fetchPhotos(urls))) return;
+  }
+  busy(true, 'Building PDF…');
+  await new Promise(r => setTimeout(r, 30));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const gen = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const filt = `${REPORT.state || 'All states'} | ${REPORT.emp ? 'Employee ' + REPORT.emp : (USER.role === 'ADMIN' ? 'All employees' : USER.name)}`;
+
+  doc.setFillColor(31, 78, 120); doc.rect(0, 0, W, 18, 'F');
+  doc.setTextColor(255); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+  doc.text('East Zone Site Safety - Check-in Report', 10, 11.5);
+  doc.setTextColor(30); doc.setFontSize(9.5); doc.setFont('helvetica', 'normal');
+  doc.text(`Period: ${period.label}   |   ${filt}   |   Check-ins: ${rows.length}   |   Days: ${new Set(keys).size}`, 10, 25);
+  doc.text(`Generated by ${USER.name} (${USER.id}) on ${gen}`, 10, 30);
+
+  // Main table (photo column shown as Yes/No; links are in Excel)
+  const idx = headers.map((h, i) => i);
+  doc.autoTable({
+    startY: 34,
+    head: [idx.map(i => headers[i])],
+    body: rows.map(r => idx.map(i => i === c.photo ? (r[i] ? 'Yes' : 'No') : String(r[i] == null ? '' : r[i]))),
+    styles: { fontSize: 6.8, cellPadding: 1.2, overflow: 'linebreak' },
+    headStyles: { fillColor: [31, 78, 120], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [242, 245, 249] },
+    margin: { left: 8, right: 8 }
+  });
+
+  // Day-wise summary
+  const byDay = {}; keys.forEach(k => byDay[k] = (byDay[k] || 0) + 1);
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 8,
+    head: [['Date', 'Check-ins']],
+    body: [...Object.keys(byDay).sort().map(k => [k.split('-').reverse().join('-'), byDay[k]]), ['TOTAL', rows.length]],
+    styles: { fontSize: 8, cellPadding: 1.5 },
+    headStyles: { fillColor: [30, 142, 62] },
+    tableWidth: 70, margin: { left: 8 }
+  });
+
+  // Photo pages: 3 x 2 grid
+  if (withPhotos) {
+    const items = rows.map((r, i) => ({ r, k: keys[i], d: PHOTO_CACHE[r[c.photo]] })).filter(x => x.d);
+    const COLS = 3, ROWS = 2, mg = 8, gap = 5, top = 16;
+    const cw = (W - 2 * mg - (COLS - 1) * gap) / COLS, ch = (H - top - mg - (ROWS - 1) * gap) / ROWS;
+    for (let n = 0; n < items.length; n++) {
+      const slot = n % (COLS * ROWS);
+      if (slot === 0) {
+        doc.addPage();
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(31, 78, 120);
+        doc.text(`Site photos - ${period.label}`, mg, 10);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(30);
+      }
+      const it = items[n], cx = mg + (slot % COLS) * (cw + gap), cy = top + Math.floor(slot / COLS) * (ch + gap);
+      const capH = 9, boxH = ch - capH;
+      const sz = await imgSize(it.d);
+      doc.setDrawColor(214, 221, 230); doc.rect(cx, cy, cw, ch);
+      if (sz) {
+        const s = Math.min(cw / sz.w, boxH / sz.h), iw = sz.w * s, ih = sz.h * s;
+        try { doc.addImage(it.d, /png/.test(it.d.slice(0, 30)) ? 'PNG' : 'JPEG', cx + (cw - iw) / 2, cy + (boxH - ih) / 2, iw, ih); } catch (e) {}
+      }
+      doc.setFontSize(7.5);
+      const cap1 = [it.k.split('-').reverse().join('-'), c.ro >= 0 ? it.r[c.ro] : '', c.roName >= 0 ? it.r[c.roName] : ''].filter(Boolean).join(' | ');
+      const cap2 = [c.empName >= 0 ? it.r[c.empName] : '', c.empId >= 0 ? '(' + it.r[c.empId] + ')' : '', c.state >= 0 ? it.r[c.state] : ''].filter(Boolean).join(' ');
+      doc.text(doc.splitTextToSize(cap1, cw - 2)[0], cx + 1, cy + boxH + 3.8);
+      doc.text(doc.splitTextToSize(cap2, cw - 2)[0], cx + 1, cy + boxH + 7.6);
+      if (n % 6 === 5) { busy(true, `Building PDF… ${n + 1} / ${items.length} photos`); await new Promise(r => setTimeout(r, 0)); }
+    }
+  }
+
+  // Page numbers
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text(`Page ${i} of ${pages}`, W - 28, H - 4);
+  }
+  doc.save(`Safety_Report_${safeName(period.file)}.pdf`);
+  busy(false);
+  toast('PDF downloaded');
+}
+
+/* ---------------- ADMIN ---------------- */
+async function loadEmps() {
+  const r = await call('listEmployees', TOKEN);
+  if (!r.ok) return $('empBody').innerHTML = `<tr><td colspan="4">${esc(r.error)}</td></tr>`;
+  $('empBody').innerHTML = r.rows.map(e => `<tr>
+    <td>${esc(e.id)}</td>
+    <td>${esc(e.name)}<br><span class="small">${esc(e.pin || 'No PIN')} • by ${esc(e.addedBy)}</span></td>
+    <td>${e.role === 'ADMIN' ? '<span class="pill a">ADMIN</span>' : 'Engineer'}</td>
+    <td><span class="pill ${e.active === 'Y' ? 'y' : 'n'}">${e.active === 'Y' ? 'Active' : 'Inactive'}</span><br>
+      ${e.id !== USER.id ? `<button class="tog" onclick="toggleEmp('${esc(e.id)}',${e.active !== 'Y'})">${e.active === 'Y' ? 'Deactivate' : 'Activate'}</button>` : ''}</td>
+  </tr>`).join('');
+}
+async function addEmp() {
+  const m = $('addMsg');
+  const r = await call('addEmployee', TOKEN, $('nName').value, $('nMobile').value, $('nRole').value);
+  if (!r.ok) return note(m, 'red', r.error);
+  note(m, 'green', `Added ${r.name} → Employee ID ${r.empId}, PIN ${r.pin} (${r.role})`);
+  $('nName').value = $('nMobile').value = ''; $('nRole').value = 'ENGINEER';
+  loadEmps();
+}
+async function toggleEmp(id, act) {
+  if (!confirm(`${act ? 'Activate' : 'Deactivate'} employee ${id}?`)) return;
+  const r = await call('setActive', TOKEN, id, act);
+  if (!r.ok) return toast(r.error);
+  loadEmps();
+}
+
+$('pin').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+initReportInputs();
+refresh();
+checkServer();
+</script>
+</body>
+</html>
