@@ -6,11 +6,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>East Zone Site Safety</title>
 
-<!-- Export libraries: Excel (SheetJS), PDF (jsPDF + AutoTable), ZIP of photos (JSZip) -->
+<!-- Export libraries: Excel (SheetJS), PDF (jsPDF + AutoTable). ZIP of photos is built into this page (no library needed). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
   :root{--blue:#1f4e78;--green:#1e8e3e;--red:#c5221f;--amber:#f9ab00;--bg:#f2f5f9;--card:#fff;--txt:#1b1f24;--mut:#5f6b7a;--bd:#d6dde6}
@@ -554,23 +553,87 @@ function dlExcel() {
 }
 
 /* ---------- PHOTO FETCH (from Drive via server, in batches) ---------- */
+/* Faster + never stuck: small batches, several running at the same time, each with a time limit.
+   A photo that can't be read is skipped (not waited on forever). */
+function photoBatch(list) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90000);   // 90 s limit per batch
+  return fetch(API_URL, {
+    method: 'POST', signal: ctl.signal,
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ fn: 'reportPhotos', args: [TOKEN, list] })
+  }).then(r => r.json()).catch(() => ({ ok: false, error: 'timeout' }))
+    .finally(() => clearTimeout(timer));
+}
 async function fetchPhotos(urls) {
   const need = [...new Set(urls.filter(u => u && !(u in PHOTO_CACHE)))];
-  const B = 8;
-  for (let i = 0; i < need.length; i += B) {
-    const r = await call('reportPhotos', TOKEN, need.slice(i, i + B));
-    busy(true, `Downloading photos… ${Math.min(i + B, need.length)} / ${need.length}`);
-    if (!r.ok) { busy(false); toast(r.error || 'Photo download failed'); return false; }
-    r.photos.forEach(p => PHOTO_CACHE[p.url] = p.data);
+  if (!need.length) return true;
+  const B = 3, PARALLEL = 4;
+  const batches = []; for (let i = 0; i < need.length; i += B) batches.push(need.slice(i, i + B));
+  let done = 0, failed = 0, expired = false, next = 0;
+  const show = () => busy(true, `Downloading photos… ${done} / ${need.length}`);
+  show();
+  async function worker() {
+    while (next < batches.length && !expired) {
+      const list = batches[next++];
+      let r = await photoBatch(list);
+      if (!r.ok && !/Session expired/.test(r.error || '')) r = await photoBatch(list);   // one retry
+      if (!r.ok && /Session expired/.test(r.error || '')) { expired = true; break; }
+      const got = {}; (r.ok ? r.photos : []).forEach(p => got[p.url] = p.data);
+      list.forEach(u => { PHOTO_CACHE[u] = got[u] || null; if (!got[u]) failed++; });
+      done += list.length; show();
+    }
+  }
+  if (IN_GAS) {                       // inside Apps Script page: use the normal call, one batch at a time
+    for (const list of batches) {
+      const r = await call('reportPhotos', TOKEN, list);
+      if (!r.ok) { busy(false); toast(r.error || 'Photo download failed'); return false; }
+      r.photos.forEach(p => { PHOTO_CACHE[p.url] = p.data; if (!p.data) failed++; });
+      done += list.length; show();
+    }
+  } else {
+    await Promise.all(Array.from({ length: Math.min(PARALLEL, batches.length) }, worker));
   }
   busy(false);
+  if (expired) { toast('Session expired. Please login again.'); resetToLogin(); return false; }
+  if (failed) toast(`${failed} photo(s) could not be read from Drive and were skipped.`);
   return true;
+}
+
+/* ---------- Built-in ZIP maker (no outside library) ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function b64bytes(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function makeZip(files) {               // files: [{ name: 'folder/file.jpg', data: Uint8Array }]
+  const enc = new TextEncoder(), parts = [], central = [];
+  const d = new Date(), dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+        dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint16(10, dosTime, true); h.setUint16(12, dosDate, true); h.setUint32(14, crc, true);
+    h.setUint32(18, size, true); h.setUint32(22, size, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(h.buffer, name, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint16(10, 0, true); c.setUint16(12, dosTime, true); c.setUint16(14, dosDate, true); c.setUint32(16, crc, true);
+    c.setUint32(20, size, true); c.setUint32(24, size, true); c.setUint16(28, name.length, true);
+    c.setUint32(42, offset, true);
+    central.push(c.buffer, name);
+    offset += 30 + name.length + size;
+  });
+  const cSize = central.reduce((s, p) => s + p.byteLength, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, cSize, true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, e.buffer], { type: 'application/zip' });
 }
 function confirmMany(n) { return n <= 150 || confirm(`${n} photos will be downloaded. This may take a few minutes on mobile data. Continue?`); }
 
 /* ---------- IMAGES (ZIP, one folder per day) ---------- */
 async function dlImages() {
-  if (!REPORT || !libOk('ZIP', window.JSZip)) return;
+  if (!REPORT) return;
   const { rows, keys, period } = REPORT, c = cols();
   if (c.photo < 0) return toast('No photo column found in the sheet.');
   const urls = rows.map(r => r[c.photo]).filter(Boolean);
@@ -579,8 +642,8 @@ async function dlImages() {
   if (!(await fetchPhotos(urls))) return;
 
   busy(true, 'Building ZIP file…');
-  const zip = new JSZip(), used = {};
-  let added = 0;
+  await new Promise(r => setTimeout(r, 30));
+  const files = [], used = {};
   rows.forEach((r, i) => {
     const d = PHOTO_CACHE[r[c.photo]]; if (!d) return;
     const folder = keys[i];
@@ -588,11 +651,11 @@ async function dlImages() {
     const k = folder + '/' + base; used[k] = (used[k] || 0) + 1;
     if (used[k] > 1) base += '_' + used[k];
     const ext = /image\/png/.test(d) ? 'png' : 'jpg';
-    zip.folder(folder).file(`${base}.${ext}`, d.split(',')[1], { base64: true });
-    added++;
+    files.push({ name: `${folder}/${base}.${ext}`, data: b64bytes(d.split(',')[1]) });
   });
+  const added = files.length;
   if (!added) { busy(false); return toast('Photos could not be read from Drive.'); }
-  const blob = await zip.generateAsync({ type: 'blob' });
+  const blob = makeZip(files);
   busy(false);
   saveBlob(blob, `Safety_Photos_${safeName(period.file)}.zip`);
   toast(`${added} photos downloaded`);
